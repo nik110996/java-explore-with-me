@@ -7,7 +7,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 public interface StatsService {
-    void createStat(HitDtoRequest hitRequestDto);
+    HitDtoRequest createStat(HitDtoRequest hitRequestDto);
 
     List<ViewStatsResponseDto> getStats(LocalDateTime start, LocalDateTime end, List<String> uris, Boolean unique);
 }
