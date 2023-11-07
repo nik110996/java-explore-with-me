@@ -5,15 +5,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.practicum.ewm.main.service.event.dto.EventFullDto;
-import ru.practicum.ewm.main.service.event.dto.EventShortDto;
-import ru.practicum.ewm.main.service.event.dto.NewEventDto;
-import ru.practicum.ewm.main.service.event.dto.UpdateEventUserRequest;
+import ru.practicum.ewm.main.service.category.mapper.CategoryMapper;
+import ru.practicum.ewm.main.service.category.model.Category;
+import ru.practicum.ewm.main.service.category.service.CategoryService;
+import ru.practicum.ewm.main.service.event.dto.*;
 import ru.practicum.ewm.main.service.event.mapper.EventMapper;
-import ru.practicum.ewm.main.service.event.model.Event;
-import ru.practicum.ewm.main.service.event.model.SortValues;
-import ru.practicum.ewm.main.service.event.model.State;
+import ru.practicum.ewm.main.service.event.mapper.EventRateMapper;
+import ru.practicum.ewm.main.service.event.model.*;
 import ru.practicum.ewm.main.service.event.repository.EventRepository;
+import ru.practicum.ewm.main.service.event.repository.RateRepository;
 import ru.practicum.ewm.main.service.exception.ConflictException;
 import ru.practicum.ewm.main.service.exception.CustomValidationException;
 import ru.practicum.ewm.main.service.exception.EntityNotFoundException;
@@ -26,7 +26,6 @@ import ru.practicum.ewm.main.service.util.Pagination;
 import ru.practicum.ewm.stats.client.StatsClient;
 import ru.practicum.ewm.stats.dto.HitDtoRequest;
 import ru.practicum.ewm.stats.dto.ViewStatsResponseDto;
-
 import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -45,6 +44,10 @@ public class EventServiceImpl implements EventService {
     private final EventMapper eventMapper;
     private final LocationRepository locationRepository;
     private final LocationMapper locationMapper;
+    private final EventRateMapper eventRateMapper;
+    private final CategoryMapper categoryMapper;
+    private final RateRepository rateRepository;
+    private final CategoryService categoryService;
 
     @Override
     @Transactional
@@ -59,10 +62,14 @@ public class EventServiceImpl implements EventService {
             throw new CustomValidationException("Некорректное начение location");
         }
 
-        Event event = eventMapper.eventFromNewEventDto(newEventDto, initiator, location);
+        Category category = categoryMapper.categoryFromDto(categoryService.getCategory(newEventDto.getCategory()));
+
+        Event event = eventMapper.eventFromNewEventDto(newEventDto, initiator, location, category);
         Event savedEvent = eventRepository.save(event);
         Long views = 0L;
-        return eventMapper.eventFullDtoFromEvent(savedEvent, views);
+        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(savedEvent, views);
+        eventFullDto.setCategory(categoryMapper.categoryToDto(savedEvent.getCategory()));
+        return eventFullDto;
     }
 
     @Override
@@ -80,6 +87,11 @@ public class EventServiceImpl implements EventService {
         List<EventShortDto> result = new ArrayList<>();
         for (Event event : events) {
             EventShortDto eventShortDto = eventMapper.eventShortDtoFromEvent(event, statistics.get("/events/" + event.getId()));
+            eventShortDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+            if (rateRepository.getEventRateView(event.getId()).isPresent()) {
+                eventShortDto.setRatesSum(rateRepository.getEventRateView(event.getId()).get().getRatesSum());
+            } else
+                eventShortDto.setRatesSum(0L);
             result.add(eventShortDto);
         }
         return result;
@@ -95,9 +107,12 @@ public class EventServiceImpl implements EventService {
         List<EventShortDto> result = new ArrayList<>();
         for (Event event : events) {
             EventShortDto eventShortDto = eventMapper.eventShortDtoFromEvent(event, statistics.get("/events/" + event.getId()));
+            eventShortDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+            if (rateRepository.getEventRateView(event.getId()).isPresent()) {
+                eventShortDto.setRatesSum(rateRepository.getEventRateView(event.getId()).get().getRatesSum());
+            } else eventShortDto.setRatesSum(0L);
             result.add(eventShortDto);
         }
-
         return new HashSet<>(result);
     }
 
@@ -114,12 +129,12 @@ public class EventServiceImpl implements EventService {
         User user = userService.getOrThrow(userId);
         Event event = getOrThrow(eventId);
         checkEventInitiatorOrThrow(event, user);
-
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-
-        return eventMapper.eventFullDtoFromEvent(event, views);
+        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, views);
+        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+        return eventFullDto;
     }
 
     @Override
@@ -152,13 +167,21 @@ public class EventServiceImpl implements EventService {
         }
 
         eventMapper.updateEventFromURDto(event, updateEventUserRequest);
+        if (updateEventUserRequest.getLocation() != null) {
+            event.setLocation(locationRepository.save(eventMapper.
+                    locationFromDto(updateEventUserRequest.getLocation())));
+        }
 
+        if (updateEventUserRequest.getCategory() != null) {
+            event.setCategory(categoryMapper.categoryFromDto(categoryService.
+                    getCategory(updateEventUserRequest.getCategory())));
+        }
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-
-        return eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
-
+        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
+        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+        return eventFullDto;
     }
 
     @Override
@@ -166,7 +189,6 @@ public class EventServiceImpl implements EventService {
     public EventFullDto updateEventAdmin(Long eventId, UpdateEventUserRequest updateEventUserRequest) {
         Event event = getOrThrow(eventId);
         Long timeDiff = 1L;
-
         if (updateEventUserRequest.getStateAction() != null) {
             switch (updateEventUserRequest.getStateAction()) {
                 case PUBLISH_EVENT:
@@ -186,23 +208,78 @@ public class EventServiceImpl implements EventService {
                     break;
             }
         }
-
         if (updateEventUserRequest.getEventDate() != null) {
             checkEventDateOrThrow(updateEventUserRequest.getEventDate(), timeDiff);
         }
-
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-
         eventMapper.updateEventFromURDto(event, updateEventUserRequest);
-        return eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
+        if (updateEventUserRequest.getLocation() != null) {
+            event.setLocation(locationRepository.save(eventMapper.
+                    locationFromDto(updateEventUserRequest.getLocation())));
+        }
+
+        if (updateEventUserRequest.getCategory() != null) {
+            event.setCategory(categoryMapper.categoryFromDto(categoryService.
+                    getCategory(updateEventUserRequest.getCategory())));
+        }
+        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
+        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+        return eventFullDto;
+    }
+
+    @Override
+    @Transactional
+    public RateEventDto addLike(Long userId, Long eventId, Boolean isLike) {
+        User user = userService.getOrThrow(userId);
+        Event event = getOrThrow(eventId);
+        long rate;
+        if (isLike) {
+            rate = 1L;
+        } else {
+            rate = -1L;
+        }
+        EventUserRate eventUserRate = EventUserRate.builder()
+                .event(event)
+                .user(user)
+                .rate(rate)
+                .build();
+        return eventRateMapper.eventRateToDto(rateRepository.save(eventUserRate));
+    }
+
+    @Override
+    @Transactional
+    public void deleteLike(Long userId, Long eventId) {
+        User user = userService.getOrThrow(userId);
+        Event event = getOrThrow(eventId);
+        if (!rateRepository.existsByUserIdAndEventId(userId,eventId)) {
+            throw new EntityNotFoundException(EventUserRate.class, "Event Rate не существует. Удалить невозможно.");
+        }
+        EventUserRate eventUserRate = EventUserRate.builder()
+                .event(event)
+                .user(user)
+                .build();
+        rateRepository.delete(eventUserRate);
+    }
+
+    @Override
+    public List<RateEventResponse> getEventsRatings(Integer from, Integer size) {
+        Pagination page = new Pagination(from, size);
+        return rateRepository.getAllEventsRateViews(page);
+    }
+
+    @Override
+    public List<RateInitiatorResponse> getUsersRatings(Integer from, Integer size) {
+        Pagination page = new Pagination(from, size);
+        return rateRepository.getAllUsersRateViews(page);
     }
 
     @Override
     public void decreaseConfirmedRequests(Event event) {
         Long confirmedRequestsNew = event.getConfirmedRequests() - 1L;
         event.setConfirmedRequests(confirmedRequestsNew);
+        eventRepository.saveAndFlush(event);
     }
 
     @Override
@@ -212,12 +289,12 @@ public class EventServiceImpl implements EventService {
             throw new EntityNotFoundException(Event.class, "Event не является PUBLISHED.");
         }
         addHit(request);
-
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-
-        return eventMapper.eventFullDtoFromEvent(event, views);
+        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, views);
+        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+        return eventFullDto;
     }
 
     @Override
@@ -232,7 +309,7 @@ public class EventServiceImpl implements EventService {
                                                   Integer size,
                                                   HttpServletRequest request) {
         if (rangeStart != null && rangeEnd != null && rangeStart.isAfter(rangeEnd)) {
-            throw new CustomValidationException("Start должен быть после End");
+            throw new CustomValidationException("Start must be after End");
         }
         Pagination page = new Pagination(from, size);
         List<Event> events = eventRepository
@@ -241,7 +318,12 @@ public class EventServiceImpl implements EventService {
         Map<String, Long> statistics = getViewsFromStatServer(events);
 
         for (Event event : events) {
-            result.add(eventMapper.eventShortDtoFromEvent(event, statistics.get("/events/" + event.getId())));
+            EventShortDto eventShortDto = eventMapper.eventShortDtoFromEvent(event, statistics.get("/events/" + event.getId()));
+            eventShortDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+            if (rateRepository.getEventRateView(event.getId()).isPresent()) {
+                eventShortDto.setRatesSum(rateRepository.getEventRateView(event.getId()).get().getRatesSum());
+            } else eventShortDto.setRatesSum(0L);
+            result.add(eventShortDto);
         }
 
         if (sort != null) {
@@ -253,6 +335,9 @@ public class EventServiceImpl implements EventService {
                     break;
                 case EVENT_DATE:
                     result.sort(Comparator.comparing(EventShortDto::getEventDate));
+                    break;
+                case RATES:
+                    result.sort((o1, o2) -> (int) (o2.getRatesSum() - o1.getRatesSum()));
             }
         }
         addHit(request);
@@ -277,7 +362,9 @@ public class EventServiceImpl implements EventService {
         Map<String, Long> statistics = getViewsFromStatServer(events);
 
         for (Event event : events) {
-            result.add(eventMapper.eventFullDtoFromEvent(event, statistics.get("/events/" + event.getId())));
+            EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, statistics.get("/events/" + event.getId()));
+            eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+            result.add(eventFullDto);
         }
         return result;
     }

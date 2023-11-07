@@ -5,10 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import ru.practicum.ewm.main.service.event.dto.EventFullDto;
-import ru.practicum.ewm.main.service.event.dto.EventShortDto;
-import ru.practicum.ewm.main.service.event.dto.NewEventDto;
-import ru.practicum.ewm.main.service.event.dto.UpdateEventUserRequest;
+import ru.practicum.ewm.main.service.event.dto.*;
 import ru.practicum.ewm.main.service.event.service.EventService;
 
 import javax.validation.Valid;
@@ -72,5 +69,27 @@ public class EventControllerPrivate {
         log.info("Пришел ответ / эндпоинт: '{} {} и с телом {}'",
                 "PATCH", "/users/" + userId + "/events/" + eventId, eventFullDto);
         return eventFullDto;
+    }
+
+    @PostMapping("/{eventId}/rate")
+    @ResponseStatus(HttpStatus.CREATED)
+    public RateEventDto addLike(@PathVariable Long userId,
+                                @PathVariable Long eventId,
+                                @RequestParam(required = true) Boolean isLike) {
+        log.info("Пришел запрос / эндпоинт: '{} {} с параметром {}'",
+                "POST", "/users/" + userId + "/events/" + eventId, isLike);
+        RateEventDto rateEventDto = eventService.addLike(userId, eventId, isLike);
+        log.info("Пришел ответ / эндпоинт: '{} {} с телом {}'",
+                "POST", "/users/" + userId + "/events/" + eventId, rateEventDto);
+        return rateEventDto;
+    }
+
+    @DeleteMapping("/{eventId}/rate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteLike(@PathVariable Long userId,
+                           @PathVariable Long eventId) {
+        log.info("Пришел запрос / эндпоинт: '{} {}'",
+                "DELETE", "/users/" + userId + "/events/" + eventId);
+        eventService.deleteLike(userId, eventId);
     }
 }
