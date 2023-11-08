@@ -1,9 +1,9 @@
 package ru.practicum.ewm.stats.service.model;
 
-import lombok.*;
+import lombok.Builder;
+import lombok.Data;
 
 import javax.persistence.*;
-import javax.validation.constraints.NotBlank;
 import java.time.LocalDateTime;
 
 @Data
@@ -16,11 +16,8 @@ public class Hit {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     @Column
-    @NotBlank
     private String app;
-    @NotBlank
     private String uri;
-    @NotBlank
     private String ip;
     @Column(name = "hit_time")
     private LocalDateTime timestamp;

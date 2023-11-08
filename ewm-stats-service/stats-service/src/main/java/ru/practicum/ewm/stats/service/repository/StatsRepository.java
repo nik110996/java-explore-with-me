@@ -6,6 +6,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import ru.practicum.ewm.stats.service.model.Hit;
 import ru.practicum.ewm.stats.service.model.ViewStats;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -45,8 +46,8 @@ public interface StatsRepository extends JpaRepository<Hit, Long> {
             "GROUP BY h.uri, h.app " +
             "ORDER BY COUNT(h.ip) DESC")
     List<ViewStats> getUrisWithUniqueIP(@Param("start") LocalDateTime start,
-                                   @Param("end") LocalDateTime end,
-                                   @Param("uris") List<String> uris);
+                                        @Param("end") LocalDateTime end,
+                                        @Param("uris") List<String> uris);
 
 
 }
