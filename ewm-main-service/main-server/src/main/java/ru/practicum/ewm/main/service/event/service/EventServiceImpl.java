@@ -214,8 +214,8 @@ public class EventServiceImpl implements EventService {
         Long views = result.get(uri);
         eventMapper.updateEventFromURDto(event, updateEventUserRequest);
         if (updateEventUserRequest.getLocation() != null) {
-            event.setLocation(locationRepository.save(eventMapper.
-                    locationFromDto(updateEventUserRequest.getLocation())));
+            event.setLocation(locationRepository.save(eventMapper
+                    .locationFromDto(updateEventUserRequest.getLocation())));
         }
 
         if (updateEventUserRequest.getCategory() != null) {
