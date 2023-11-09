@@ -26,6 +26,7 @@ import ru.practicum.ewm.main.service.util.Pagination;
 import ru.practicum.ewm.stats.client.StatsClient;
 import ru.practicum.ewm.stats.dto.HitDtoRequest;
 import ru.practicum.ewm.stats.dto.ViewStatsResponseDto;
+
 import javax.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -61,9 +62,7 @@ public class EventServiceImpl implements EventService {
         } catch (DataIntegrityViolationException e) {
             throw new CustomValidationException("Некорректное начение location");
         }
-
         Category category = categoryMapper.categoryFromDto(categoryService.getCategory(newEventDto.getCategory()));
-
         Event event = eventMapper.eventFromNewEventDto(newEventDto, initiator, location, category);
         Event savedEvent = eventRepository.save(event);
         Long views = 0L;
@@ -168,13 +167,12 @@ public class EventServiceImpl implements EventService {
 
         eventMapper.updateEventFromURDto(event, updateEventUserRequest);
         if (updateEventUserRequest.getLocation() != null) {
-            event.setLocation(locationRepository.save(eventMapper.
-                    locationFromDto(updateEventUserRequest.getLocation())));
+            event.setLocation(locationRepository.save(eventMapper
+                    .locationFromDto(updateEventUserRequest.getLocation())));
         }
-
         if (updateEventUserRequest.getCategory() != null) {
-            event.setCategory(categoryMapper.categoryFromDto(categoryService.
-                    getCategory(updateEventUserRequest.getCategory())));
+            event.setCategory(categoryMapper.categoryFromDto(categoryService
+                    .getCategory(updateEventUserRequest.getCategory())));
         }
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
@@ -221,8 +219,8 @@ public class EventServiceImpl implements EventService {
         }
 
         if (updateEventUserRequest.getCategory() != null) {
-            event.setCategory(categoryMapper.categoryFromDto(categoryService.
-                    getCategory(updateEventUserRequest.getCategory())));
+            event.setCategory(categoryMapper.categoryFromDto(categoryService
+                    .getCategory(updateEventUserRequest.getCategory())));
         }
         EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
         eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
@@ -253,7 +251,7 @@ public class EventServiceImpl implements EventService {
     public void deleteLike(Long userId, Long eventId) {
         User user = userService.getOrThrow(userId);
         Event event = getOrThrow(eventId);
-        if (!rateRepository.existsByUserIdAndEventId(userId,eventId)) {
+        if (!rateRepository.existsByUserIdAndEventId(userId, eventId)) {
             throw new EntityNotFoundException(EventUserRate.class, "Event Rate не существует. Удалить невозможно.");
         }
         EventUserRate eventUserRate = EventUserRate.builder()
@@ -325,7 +323,6 @@ public class EventServiceImpl implements EventService {
             } else eventShortDto.setRatesSum(0L);
             result.add(eventShortDto);
         }
-
         if (sort != null) {
             SortValues sortValue = SortValues.from(sort).orElseThrow(() ->
                     new CustomValidationException(String.format("Unsupported status = %s", sort)));
@@ -360,7 +357,6 @@ public class EventServiceImpl implements EventService {
         List<Event> events = eventRepository.findAllByParamsAdmin(users, states, categories, rangeStart, rangeEnd, page);
         List<EventFullDto> result = new ArrayList<>();
         Map<String, Long> statistics = getViewsFromStatServer(events);
-
         for (Event event : events) {
             EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, statistics.get("/events/" + event.getId()));
             eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
@@ -385,7 +381,6 @@ public class EventServiceImpl implements EventService {
         }
         Map<String, Long> resultMap = statistics.stream()
                 .collect(Collectors.toMap(ViewStatsResponseDto::getUri, ViewStatsResponseDto::getHits, (a, b) -> b));
-
         return resultMap;
     }
 
@@ -395,7 +390,6 @@ public class EventServiceImpl implements EventService {
                 .uri(request.getRequestURI())
                 .ip(request.getRemoteAddr())
                 .timestamp(LocalDateTime.now()).build();
-
         try {
             statsClient.createStat(hitRequestDto);
             log.info("Create stat uri={}", hitRequestDto.getUri());
