@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.practicum.ewm.main.service.category.dto.CategoryDto;
 import ru.practicum.ewm.main.service.category.mapper.CategoryMapper;
 import ru.practicum.ewm.main.service.category.model.Category;
 import ru.practicum.ewm.main.service.category.service.CategoryService;
@@ -66,9 +67,8 @@ public class EventServiceImpl implements EventService {
         Event event = eventMapper.eventFromNewEventDto(newEventDto, initiator, location, category);
         Event savedEvent = eventRepository.save(event);
         Long views = 0L;
-        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(savedEvent, views);
-        eventFullDto.setCategory(categoryMapper.categoryToDto(savedEvent.getCategory()));
-        return eventFullDto;
+        CategoryDto categoryDto = categoryMapper.categoryToDto(savedEvent.getCategory());
+        return eventMapper.eventFullDtoFromEvent(savedEvent, views, categoryDto);
     }
 
     @Override
@@ -131,9 +131,8 @@ public class EventServiceImpl implements EventService {
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, views);
-        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
-        return eventFullDto;
+        CategoryDto categoryDto = categoryMapper.categoryToDto(event.getCategory());
+        return eventMapper.eventFullDtoFromEvent(event, views, categoryDto);
     }
 
     @Override
@@ -177,9 +176,8 @@ public class EventServiceImpl implements EventService {
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
-        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
-        return eventFullDto;
+        CategoryDto categoryDto = categoryMapper.categoryToDto(event.getCategory());
+        return eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views, categoryDto);
     }
 
     @Override
@@ -222,9 +220,8 @@ public class EventServiceImpl implements EventService {
             event.setCategory(categoryMapper.categoryFromDto(categoryService
                     .getCategory(updateEventUserRequest.getCategory())));
         }
-        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views);
-        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
-        return eventFullDto;
+        CategoryDto categoryDto = categoryMapper.categoryToDto(event.getCategory());
+        return eventMapper.eventFullDtoFromEvent(eventRepository.save(event), views, categoryDto);
     }
 
     @Override
@@ -290,9 +287,8 @@ public class EventServiceImpl implements EventService {
         String uri = "/events/" + event.getId();
         Map<String, Long> result = getViewsFromStatServer(List.of(event));
         Long views = result.get(uri);
-        EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, views);
-        eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
-        return eventFullDto;
+        CategoryDto categoryDto = categoryMapper.categoryToDto(event.getCategory());
+        return eventMapper.eventFullDtoFromEvent(event, views, categoryDto);
     }
 
     @Override
@@ -320,7 +316,9 @@ public class EventServiceImpl implements EventService {
             eventShortDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
             if (rateRepository.getEventRateView(event.getId()).isPresent()) {
                 eventShortDto.setRatesSum(rateRepository.getEventRateView(event.getId()).get().getRatesSum());
-            } else eventShortDto.setRatesSum(0L);
+            } else {
+                eventShortDto.setRatesSum(0L);
+            }
             result.add(eventShortDto);
         }
         if (sort != null) {
@@ -358,8 +356,9 @@ public class EventServiceImpl implements EventService {
         List<EventFullDto> result = new ArrayList<>();
         Map<String, Long> statistics = getViewsFromStatServer(events);
         for (Event event : events) {
-            EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event, statistics.get("/events/" + event.getId()));
-            eventFullDto.setCategory(categoryMapper.categoryToDto(event.getCategory()));
+            CategoryDto categoryDto = categoryMapper.categoryToDto(event.getCategory());
+            EventFullDto eventFullDto = eventMapper.eventFullDtoFromEvent(event,
+                    statistics.get("/events/" + event.getId()), categoryDto);
             result.add(eventFullDto);
         }
         return result;

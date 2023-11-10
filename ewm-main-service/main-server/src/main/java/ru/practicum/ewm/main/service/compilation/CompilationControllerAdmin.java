@@ -38,6 +38,8 @@ public class CompilationControllerAdmin {
         log.info("Пришел запрос / эндпоинт: '{} {}'",
                 "DELETE", "/admin/compilations/" + compId);
         compilationService.delete(compId);
+        log.info("Пришел ответ / эндпоинт: '{} {}'",
+                "DELETE", "/admin/compilations/" + compId);
     }
 
     @PatchMapping("/{compId}")

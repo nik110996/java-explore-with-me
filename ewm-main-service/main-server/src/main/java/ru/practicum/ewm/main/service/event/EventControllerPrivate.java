@@ -91,5 +91,7 @@ public class EventControllerPrivate {
         log.info("Пришел запрос / эндпоинт: '{} {}'",
                 "DELETE", "/users/" + userId + "/events/" + eventId);
         eventService.deleteLike(userId, eventId);
+        log.info("Пришел ответ / эндпоинт: '{} {}'",
+                "DELETE", "/users/" + userId + "/events/" + eventId);
     }
 }

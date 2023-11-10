@@ -2,6 +2,7 @@ package ru.practicum.ewm.main.service.event.mapper;
 
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
+import ru.practicum.ewm.main.service.category.dto.CategoryDto;
 import ru.practicum.ewm.main.service.category.model.Category;
 import ru.practicum.ewm.main.service.event.dto.EventFullDto;
 import ru.practicum.ewm.main.service.event.dto.EventShortDto;
@@ -53,7 +54,7 @@ public abstract class EventMapper {
         }
     }
 
-    public EventFullDto eventFullDtoFromEvent(Event event, Long views) {
+    public EventFullDto eventFullDtoFromEvent(Event event, Long views, CategoryDto categoryDto) {
         if (event == null) {
             return null;
         }
@@ -73,6 +74,7 @@ public abstract class EventMapper {
         eventFullDto.state(event.getState());
         eventFullDto.title(event.getTitle());
         eventFullDto.views(views);
+        eventFullDto.category(categoryDto);
         return eventFullDto.build();
     }
 
