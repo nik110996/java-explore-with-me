@@ -34,6 +34,8 @@ public class CategoryControllerAdmin {
         log.info("Пришел запрос / эндпоинт: '{} {}'",
                 "DELETE", "/admin/categories/" + catId);
         categoryService.delete(catId);
+        log.info("Пришел ответ / эндпоинт: '{} {}'",
+                "DELETE", "/admin/categories/" + catId);
     }
 
     @PatchMapping("/{catId}")

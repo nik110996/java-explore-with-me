@@ -54,5 +54,7 @@ public class UserControllerAdmin {
         log.info("Пришел запрос / эндпоинт: '{} {}'",
                 "DELETE", "/admin/users/" + userId);
         userService.delete(userId);
+        log.info("Пришел ответ / эндпоинт: '{} {}'",
+                "DELETE", "/admin/users/" + userId);
     }
 }
